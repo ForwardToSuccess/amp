@@ -350,6 +350,8 @@ function amp_is_amp_request() {
           // request.
           $result = TRUE;
         }
+              }elseif(variable_get('amp_views_en')){
+        $result = amp_compare_views_page_with_current();
       }
     }
   }
@@ -648,9 +650,9 @@ function amp_node_view($node, $view_mode, $langcode) {
   // Show amphtml links on AMP-enabled nodes so search engines can find AMP.
   if ($view_mode == 'full' && node_is_page($node) && in_array($node->type, amp_get_enabled_types())) {
     $uri = entity_uri('node', $node);
-    $uri['options']['query']['amp'] = NULL;
+    unset($uri['options']['query']['amp']);
     $uri['options']['absolute'] = TRUE;
-    drupal_add_html_head_link(array('rel' => 'amphtml', 'href' => url($uri['path'], $uri['options'])), TRUE);
+    drupal_add_html_head_link(array('rel' => 'amphtml', 'href' => url($uri['path'], $uri['options']).'/amp'), TRUE);
   }
 
   // Add AMP metadata.
@@ -681,8 +683,12 @@ function amp_node_view($node, $view_mode, $langcode) {
         );
       }
       elseif ($values['type'] == 'ImageObject') {
+        $node = node_load(arg(1));
         $image_url = token_replace($metadata['amp_metadata_config_' . $name], array('node' => $node));
+$image_url = explode(', ', $image_url)[0];
+// dsm(token_replace('[node:field_images]', array('node' => $node)));
 
+// $image_url = 'https://agroexp.com.ua/sites/default/files/novell.jpg';
         // Provide backup parsing of image element if token does not output a URL.
         if (strip_tags($image_url) != $image_url) {
           // Force path to be absolute.
@@ -765,6 +771,20 @@ function amp_node_view($node, $view_mode, $langcode) {
     );
     drupal_add_html_head($element, 'amp_metadata');
   }
+}
+ 
+
+/**
+ * implements hook_views_pre_view
+ */
+function amp_views_pre_view(&$view, &$display_id, &$args){
+  if(variable_get('amp_views_en') && !isset($_GET['amp']) && amp_compare_views_page_with_current()){
+    $uri = array();
+    $uri['path'] = current_path();
+    unset($uri['options']['query']['amp']);
+    $uri['options']['absolute'] = TRUE;
+    drupal_add_html_head_link(array('rel' => 'amphtml', 'href' => url($uri['path'], $uri['options']).'/amp'), TRUE);
+   }
 }
 
 /**
@@ -1574,5 +1594,29 @@ function _amp_get_image_information($image_url, $image_uri, $image_style_id) {
   }
   else {
     return array();
+  }
+}
+
+
+
+// Чистая ссылка amp
+function amp_url_inbound_alter(&$path, $original_path, $path_language) {
+  if(preg_match('~/amp$~', $original_path)) {
+      $parts = explode('/amp', $original_path);
+      $path = 'o-nas';
+      $path_info = path_load(array('alias' => $parts[0]));
+      if ($path_info['source']) {
+        $path = $path_info['source'];
+      } else {
+        $path = $parts[0];
+      }
+      $_GET['amp'] = '';
+      // переменная в пост для проверки переадресации
+      $_POST['customampurl'] = TRUE;
+  }
+  // переадресация 301 при нахождении пользователя на ?amp
+  if(!isset($_POST['customampurl']) && isset($_GET['amp'])) {
+      $goto_path = $original_path.'/amp';
+      drupal_goto($goto_path,array(),301);
   }
 }

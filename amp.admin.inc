@@ -81,6 +81,30 @@ function amp_admin_form($form, &$form_state) {
     );
   }
 
+    $form['amp_views_group'] = array(
+    '#type' => 'fieldset',
+    '#title' => t('Views pages'),
+  );
+  $form['amp_views_group']['amp_views_en'] = array(
+    '#type' => 'checkbox',
+    '#title' => t('Enable AMP Views'),
+    '#default_value' => variable_get('amp_views_en'),
+  );
+
+  $form['amp_views_group']['amp_views_pages'] = array(
+    '#type' => 'checkboxes',
+    '#title' => t('Checked views pages'),
+    '#options' => amp_get_views_pages(),
+    '#default_value' => variable_get('amp_views_pages'),
+    '#states' => array(
+      // Only show this field when the 'toggle_me' checkbox is enabled.
+      'visible' => array(
+        ':input[name="amp_views_en"]' => array('checked' => TRUE),
+      ),
+    ),
+  );
+
+
   $form['pixel_group'] = array(
     '#type' => 'fieldset',
     '#title' => t('amp-pixel'),
@@ -170,18 +194,63 @@ function amp_admin_form($form, &$form_state) {
 
   $form['#submit'] = array('amp_admin_form_submit');
   return system_settings_form($form);
+
+}
+
+/**
+ * get all views pages
+ */
+function amp_get_views_pages() {
+  $views = views_get_all_views();
+  $a_v = array();
+  if (!empty($views)) {
+    foreach ($views as $view => $data) {
+      if (!$data->disabled && ($view != 'feeds_log' && $view != 'rss')) {
+        $title_option = $data->human_name;
+        $value_option = $data->name;
+        foreach ($data->display as $key => $display) {
+          if (!empty($display->display_options['path'])) {
+            $a_v[$value_option . '#' . $key] = $title_option . ': ' . $display->display_title;
+          }
+        }
+      }
+    }
+  }
+  return $a_v;
+}
+
+
+function amp_compare_views_page_with_current(){
+  $checked_views = variable_get('amp_views_pages');
+  foreach($checked_views as $view){
+    $view = explode('#', $view);
+    if (count($view) == 2) {
+      $ob_view = views_get_view($view[0]);
+
+      if(strpos(current_path(), $ob_view->display[$view[1]]->display_options['path']) == current_path()){
+        return TRUE;
+      }
+      elseif($ob_view->display[$view[1]]->display_options['path'] == 'taxonomy/term/%'){
+         $pos = strpos(current_path(), 'taxonomy/term/');
+         if ($pos !== false) {
+           return TRUE;
+         }
+      }
+    }
+  }
+  return FALSE;
 }
 /**
  * Submit handler for the amp_admin_form
  * Clears the Drupal cache if the AMP Library warnings display checkbox value is changed
- * 
+ *
  * @param type $form
  * @param type $form_state
  */
 function amp_admin_form_submit($form, &$form_state) {
   if (variable_get('amp_library_warnings_display', false) !== $form_state['values']['amp_library_warnings_display']) {
     cache_clear_all();
-    drupal_set_message(t('AMP Library debugging checkbox changed. Cleared cache.'));    
+    drupal_set_message(t('AMP Library debugging checkbox changed. Cleared cache.'));
   }
 }
 
